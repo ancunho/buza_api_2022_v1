@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="Buza.User">
+
+    <sql id="Base_Column_List_Except_Password">
+        USER_SEQ, OPENID, UNIONID, USERNAME, PASSWORD, ROLE_NO, ROLE, STATUS, USER_TYPE,
+        REALNAME, COMPANY, COMPANY_TYPE, MOBILE_NO, EMAIL, SEX, BIRTHDAY, WECHAT, PROVINCE_CODE,
+        CITY_CODE, DISTRICT_CODE, ADDRESS, QUESTION, ANSWER, IMAGE_PHOTO, OPTION01, OPTION02,
+        OPTION03, OPTION04, OPTION05, CREATETIME, UPDATETIME
+    </sql>
+
+    <select id="selectSysUserByUserSeq" parameterType="java.lang.Integer" resultType="buza.group.api.entity.SysUser">
+        select <include refid="Base_Column_List_Except_Password" />
+        from    sys_user
+        where   user_seq = #{userSeq}
+    </select>
+
+    <select id="selectSysUserByUsername" parameterType="java.lang.String" resultType="buza.group.api.entity.SysUser">
+        select
+        <include refid="Base_Column_List_Except_Password"/>
+        from sys_user
+        where USERNAME = #{username}
+    </select>
+
+    <select id="getSysUserListByRoleId" parameterType="java.lang.Integer" resultType="buza.group.api.entity.SysUser">
+        SELECT <include refid="Base_Column_List_Except_Password"/>
+        FROM    sys_user
+        where   user_seq in (select user_seq from sys_user_role where role_id = #{roleId})
+    </select>
+
+    <select id="getSysUserListByMenuId" resultType="buza.group.api.entity.SysUser">
+        SELECT 	DISTINCT T3.USERNAME
+        FROM 	SYS_USER_ROLE T1
+                    LEFT OUTER JOIN SYS_ROLE_MENU T2 ON T1.ROLE_ID = T2.ROLE_ID
+                    LEFT OUTER JOIN SYS_USER T3 ON T1.USER_SEQ = T3.USER_SEQ
+        WHERE 	T2.MENU_ID = #{menuId}
+    </select>
+
+    <select id="getNavMenuIdsByUserSeq" resultType="java.lang.Integer">
+        <![CDATA[
+        SELECT 	DISTINCT T1.MENU_ID
+        FROM 	sys_role_menu T1
+                    LEFT OUTER JOIN sys_user_role T2 ON T1.ROLE_ID = T2.ROLE_ID
+        WHERE	T2.USER_SEQ = #{userSeq}
+        ]]>
+    </select>
+
+    <select id="getSysRoleListByUserSeq" parameterType="java.lang.Integer" resultType="buza.group.api.entity.SysRole">
+        <![CDATA[
+        SELECT  ID, NAME, CODE, REMARK,
+                date_format(CREATETIME, '%Y-%m-%d') AS CREATETIME,
+                date_format(UPDATETIME, '%Y-%m-%d') AS UPDATETIME
+        FROM    SYS_ROLE T1
+        WHERE   T1.ID IN (
+                         SELECT ROLE_ID
+                         FROM   SYS_USER_ROLE
+                         WHERE  USER_SEQ = #{userSeq}
+                         )
+        ]]>
+    </select>
+
+    <select id="getMenuListByUserSeq" parameterType="java.lang.Integer" resultType="buza.group.api.entity.SysMenu">
+        <![CDATA[
+        SELECT  *
+        FROM    SYS_MENU T
+        WHERE   T.ID IN  (
+                        SELECT  DISTINCT T2.MENU_ID
+                        FROM    SYS_USER_ROLE T1
+                                LEFT OUTER JOIN SYS_ROLE_MENU T2 ON  T1.ROLE_ID = T2.ROLE_ID
+                        WHERE   T1.USER_SEQ = #{userSeq}
+                        )
+        ]]>
+    </select>
+
+    <select id="getSysRoleList" resultType="buza.group.api.model.SysRoleVo">
+        <![CDATA[
+        SELECT 	T1.ID,
+                T1.NAME,
+                T1.CODE,
+                T1.REMARK,
+                T1.STATUS,
+                CASE WHEN T1.STATUS = 1 THEN '启用' WHEN T1.STATUS = 0 THEN '禁用' END AS STATUS_NAME,
+                DATE_FORMAT(CREATETIME, '%Y-%m-%d %H:%i') AS CREATETIME,
+                DATE_FORMAT(UPDATETIME, '%Y-%m-%d %H:%i') AS UPDATETIME
+        FROM 	SYS_ROLE T1
+        ]]>
+    </select>
+
+    <select id="getAllSysMenuList" resultType="buza.group.api.model.SysMenuVo">
+        <![CDATA[
+        SELECT 	T1.ID
+                ,T1.PARENT_ID
+                ,T1.NAME
+                ,T1.PATH
+                ,T1.PERMS
+                ,T1.COMPONENT
+                ,T1.TYPE
+                ,CASE WHEN T1.TYPE = 0 THEN '目录' WHEN T1.TYPE = 1 THEN '菜单' WHEN T1.TYPE = 2 THEN '按钮' END AS TYPE_NAME
+                ,T1.ORDER_NUM
+                ,T1.STATUS
+                ,CASE WHEN T1.STATUS = 1 THEN '启用' WHEN T1.STATUS = 0 THEN '禁用' END AS STATUS_NAME
+                ,DATE_FORMAT(CREATETIME, '%Y-%m-%d %H:%i') AS CREATETIME
+                ,DATE_FORMAT(UPDATETIME, '%Y-%m-%d %H:%i') AS UPDATETIME
+        FROM 	SYS_MENU T1
+        ]]>
+    </select>
+
+    <select id="checkMenuAndPerms" parameterType="buza.group.api.model.SysMenuVo" resultType="java.lang.Integer">
+        <![CDATA[
+        SELECT  COUNT(1)
+        FROM    SYS_MENU T1
+        WHERE   (T1.NAME = #{name} OR T1.PERMS = #{perms})
+        ]]>
+    </select>
+
+    <select id="checkMenuAndPermsExceptSelf" parameterType="buza.group.api.model.SysMenuVo" resultType="java.lang.Integer">
+        <![CDATA[
+        SELECT  COUNT(1)
+        FROM    SYS_MENU T1
+        WHERE   (T1.NAME = #{name} OR T1.PERMS = #{perms})
+        AND     T1.ID != #{id}
+        ]]>
+    </select>
+
+    <insert id="insertNewMenu" parameterType="buza.group.api.model.SysMenuVo">
+        <![CDATA[
+        INSERT INTO SYS_MENU (PARENT_ID, NAME, PATH, PERMS, COMPONENT, TYPE, ICON, ORDER_NUM, STATUS, CREATETIME)
+                    VALUES  (#{parentId}, #{name}, #{path}, #{perms}, #{component}, #{type}, #{icon}, #{orderNum}, #{status}, sysdate())
+        ]]>
+    </insert>
+
+    <update id="updateSysMenu" parameterType="buza.group.api.model.SysMenuVo">
+        UPDATE  SYS_MENU T1
+        <set>
+            <if test="parentId != null">T1.PARENT_ID = #{parentId},</if>
+            <if test="name != null">T1.NAME = #{name}, </if>
+            <if test="path != null">T1.PATH = #{path}, </if>
+            <if test="perms != null">T1.PERMS = #{perms}, </if>
+            <if test="component != null">T1.COMPONENT = #{component}, </if>
+            <if test="type != null">T1.TYPE = #{type}, </if>
+            <if test="icon != null">T1.ICON = #{icon}, </if>
+            <if test="orderNum != null">T1.ORDER_NUM = #{orderNum}, </if>
+            <if test="status != null">T1.STATUS = #{status}, </if>
+            T1.UPDATETIME = NOW()
+        </set>
+        WHERE   T1.ID = #{id}
+    </update>
+
+    <select id="getAllSysRoleList" resultType="buza.group.api.model.SysRoleVo">
+        <![CDATA[
+        SELECT 	T1.ID AS roleId
+                ,T1.NAME AS roleName
+                ,T1.CODE AS roleCode
+                ,T1.REMARK AS roleRemark
+                ,T1.STATUS AS roleStatus
+                ,DATE_FORMAT(T1.CREATETIME, '%Y-%m-%d %H:%i') AS roleCreatetime
+                ,DATE_FORMAT(T1.UPDATETIME, '%Y-%m-%d %H:%i') AS roleUpdatetime
+        FROM 	SYS_ROLE T1
+               ,SYS_ROLE_MENU T2
+               ,SYS_MENU T3
+        WHERE 	T1.ID = T2.ROLE_ID
+        AND 	T2.MENU_ID = T3.ID
+        ]]>
+    </select>
+
+    <select id="getSysMenuListByRoleId" parameterType="java.lang.Integer" resultType="buza.group.api.model.SysRoleVo">
+        <![CDATA[
+
+        ]]>
+    </select>
+
+</mapper>
